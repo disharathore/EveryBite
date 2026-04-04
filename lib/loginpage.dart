@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:everybite/homepage.dart';
 import 'package:everybite/signuppage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
@@ -13,8 +13,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool passwordVisible = false;
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -26,16 +24,13 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      // Attempt to sign in with the email and password
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      final user = await MongoUserService.instance.loginWithEmailPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Check if the user is logged in successfully
-      User? user = userCredential.user;
-
       if (user != null) {
+        SessionService.currentUserId = user['user_id'] as String?;
         // If login is successful, navigate to the home page
         Navigator.pushReplacement(
           context,
@@ -48,65 +43,40 @@ class _LoginPageState extends State<LoginPage> {
           gravity: ToastGravity.BOTTOM,
         );
       }
-    } on FirebaseAuthException catch (e) {
-      // Handling specific Firebase authentication errors
-      if (e.code == 'user-not-found') {
+    } catch (e) {
+      final errorText = e.toString().toLowerCase();
+      if (errorText.contains('missing in .env')) {
         Fluttertoast.showToast(
-          msg: 'No user found for that email. Please check the email address.',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-        );
-      } else if (e.code == 'invalid-credential') {
-        Fluttertoast.showToast(
-          msg: 'Incorrect password. Please try again.',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-        );
-      } else if (e.code == 'invalid-email') {
-        Fluttertoast.showToast(
-          msg: 'The email address is not valid. Please check the format.',
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-        );
-      } else if (e.code == 'too-many-requests') {
-        Fluttertoast.showToast(
-          msg: 'Too many login attempts. Please try again later.',
+          msg: 'Server setup missing. Please configure MongoDB in .env.',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
         );
       } else {
         Fluttertoast.showToast(
-          msg: 'An unexpected error occurred. Please try again later.',
+          msg: 'Incorrect email or password. Please try again.',
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
         );
       }
-      print(
-          "Firebase Auth Error: ${e.code}"); // Optional: for debugging purposes
-    } catch (e) {
-      // Handling other types of errors (e.g., network connectivity)
-
-      Fluttertoast.showToast(
-        msg: 'An unexpected error occurred. Please try again later.',
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-      );
-      print("General Error: $e"); // Optional: for debugging purposes
+      print("Login Error: $e");
     }
   }
 
   Future<void> _forgotPassword() async {
     if (_emailController.text.isNotEmpty) {
       try {
-        await _auth.sendPasswordResetEmail(email: _emailController.text);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Password reset email sent!")),
-        );
+        final exists = await MongoUserService.instance
+            .userExistsByEmail(_emailController.text);
+        setState(() {
+          _errorMessage = exists
+              ? 'Password reset requested. Please contact support.'
+              : 'No user found for this email.';
+        });
       } catch (e) {
         setState(() {
-          _errorMessage = 'Error sending password reset email.';
+          _errorMessage = 'Error checking account for password reset.';
         });
-        print("Error resetting password: $e");
+        print("Reset Error: $e");
       }
     } else {
       setState(() {

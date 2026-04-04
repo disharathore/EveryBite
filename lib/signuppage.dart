@@ -1,6 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:everybite/homepage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:everybite/loginpage.dart';
+import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -14,8 +15,6 @@ class SignUp extends StatefulWidget {
 
 class _SignUpState extends State<SignUp> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -44,164 +43,88 @@ class _SignUpState extends State<SignUp> {
   }
 
   Future<void> _signUpWithEmail() async {
-    // Validation logic...
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
 
     try {
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
+      final userId = await MongoUserService.instance.createUser(
         email: _emailController.text,
         password: _passwordController.text,
+        fullName: _nameController.text.trim(),
+        age: _ageController.text.trim(),
+        gender: _selectedGender,
+        dietaryPreference: _selectedDietaryPreference,
+        allergies: _allergiesController.text.trim(),
+        pregnancyStatus: _pregnancyStatus,
+      );
+      SessionService.currentUserId = userId;
+
+      Fluttertoast.showToast(
+        msg: "Account created successfully!",
+        toastLength: Toast.LENGTH_LONG,
+        gravity: ToastGravity.BOTTOM,
       );
 
-      User? user = userCredential.user;
-      if (user != null) {
-        await user.sendEmailVerification();
-        Fluttertoast.showToast(
-          msg: "Verification email sent. Please check your inbox.",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-        );
-
-        await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text("Verify Your Email"),
-            content: Text(
-                "A verification link has been sent to ${user.email}. Please verify your email to complete the sign-up process."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text("OK"),
-              ),
-            ],
-          ),
-        );
-
-        _checkEmailVerificationStatus(); // Start polling for verification
+      if (!mounted) {
+        return;
       }
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const Homepage(),
+        ),
+      );
     } catch (e) {
-      print("Error signing up: $e");
+      final errorText = e.toString().toLowerCase();
+      final alreadyRegistered = errorText.contains('email-already-in-use');
+      final message = alreadyRegistered
+          ? 'This email is already registered. Please login.'
+          : 'Sign up failed: $e';
       Fluttertoast.showToast(
-        msg: "Sign up failed: $e",
+        msg: message,
         toastLength: Toast.LENGTH_LONG,
         gravity: ToastGravity.CENTER,
         backgroundColor: Colors.red,
         textColor: Colors.white,
       );
-    }
-  }
 
-  Future<void> _checkEmailVerificationStatus() async {
-    User? user = _auth.currentUser;
-
-    if (user != null) {
-      bool emailVerified = false;
-
-      while (!emailVerified) {
-        await Future.delayed(const Duration(seconds: 3)); // Wait 3 seconds
-        await user?.reload(); // Refresh user information
-        user = _auth.currentUser; // Get updated user instance
-        emailVerified = user!.emailVerified;
-
-        if (emailVerified) {
-          Fluttertoast.showToast(
-            msg: "Email verified successfully!",
-            toastLength: Toast.LENGTH_SHORT,
-            gravity: ToastGravity.BOTTOM,
-            backgroundColor: Colors.green,
-            textColor: Colors.white,
-          );
-
-          // Add user details to Firestore
-          await _firestore.collection('users').doc(user.uid).set({
-            'full_name': _nameController.text.trim(),
-            'profilepic': '',
-            'gender': _selectedGender,
-            'pregnancy_status': _pregnancyStatus,
-            'age': _ageController.text.trim(),
-            'dietary_preference': _selectedDietaryPreference,
-            'allergies': _allergiesController.text.trim(),
-          });
-
-          // Navigate to Userprofile
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const Homepage(),
-            ),
-          );
-          break;
-        }
+      if (alreadyRegistered && mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Account Already Exists'),
+            content: const Text('This email is already registered. Please login instead.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                },
+                child: const Text('Go To Login'),
+              ),
+            ],
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
-
-  // Future<void> _signUpWithEmail() async {
-  //   if (_formKey.currentState?.validate() ?? false) {
-  //     setState(() => _isLoading = true);
-  //     try {
-  //       UserCredential userCredential =
-  //           await _auth.createUserWithEmailAndPassword(
-  //         email: _emailController.text.trim(),
-  //         password: _passwordController.text.trim(),
-  //       );
-
-  //       User? user = userCredential.user;
-  //       if (user != null) {
-  //         await user.sendEmailVerification();
-  //         Fluttertoast.showToast(
-  //           msg: "Verification email sent. Please check your inbox.",
-  //           toastLength: Toast.LENGTH_LONG,
-  //           gravity: ToastGravity.BOTTOM,
-  //         );
-
-  //         await _firestore.collection('users').doc(user.uid).set({
-  //           'full_name': _nameController.text.trim(),
-  //           'email': user.email,
-  //           'profilepic': '',
-  //           'gender': _selectedGender,
-  //           'pregnancy_status': _pregnancyStatus,
-  //           'age': _ageController.text.trim(),
-  //           'dietary_preference': _selectedDietaryPreference,
-  //           'allergies': _allergiesController.text.trim(),
-  //         });
-
-  //         showDialog(
-  //           context: context,
-  //           builder: (context) => AlertDialog(
-  //             title: const Text("Verify Your Email"),
-  //             content: Text(
-  //                 "A verification link has been sent to ${user.email}. Please verify your email to complete the sign-up process."),
-  //             actions: [
-  //               TextButton(
-  //                 onPressed: () => Navigator.of(context).pop(),
-  //                 child: const Text("OK"),
-  //               ),
-  //             ],
-  //           ),
-  //         );
-  //         setState(() {
-  //           _isLoading = false;
-  //         });
-
-  //         Navigator.of(context).pushReplacement(
-  //           MaterialPageRoute(
-  //             builder: (context) => Homepage(userId: user.uid),
-  //           ),
-  //         );
-  //       }
-  //     } catch (e) {
-  //       Fluttertoast.showToast(
-  //         msg: "Sign up failed: ${e.toString()}",
-  //         toastLength: Toast.LENGTH_LONG,
-  //         gravity: ToastGravity.CENTER,
-  //         backgroundColor: Colors.red,
-  //         textColor: Colors.white,
-  //       );
-  //     } finally {
-  //       setState(() => _isLoading = false);
-  //     }
-  //   }
-  // }
 
   void _askPregnancyStatus() {
     if (_selectedGender == 'Female') {

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:everybite/bottomnav.dart';
 import 'package:everybite/analysispage1.dart';
 import 'package:everybite/chatscreen.dart';
@@ -10,8 +8,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:everybite/analysispage.dart';
 import 'package:everybite/profilepage.dart';
+import 'package:everybite/loginpage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/session_service.dart';
 
 class Homepage extends StatefulWidget {
   final String? userId;
@@ -73,19 +74,22 @@ class _HomepageState extends State<Homepage> {
 
   Future<void> _fetchUserData() async {
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      final uid = currentUser?.uid ?? widget.userId;
+      final uid = SessionService.currentUserId ?? widget.userId;
       if (uid == null || uid.isEmpty) {
+        if (!mounted) {
+          return;
+        }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+        );
         return;
       }
 
-      DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      if (userSnapshot.exists) {
+      final userSnapshot = await MongoUserService.instance.getUserById(uid);
+      if (userSnapshot != null) {
         setState(() {
-          userData = userSnapshot.data() as Map<String, dynamic>;
+          userData = userSnapshot;
         });
       }
     } catch (e) {

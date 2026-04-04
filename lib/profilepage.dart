@@ -5,10 +5,10 @@ import 'package:everybite/editpage.dart';
 import 'package:everybite/homepage.dart';
 import 'package:everybite/loginpage.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/session_service.dart';
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -16,10 +16,7 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  User? user;
+  String? userId;
   String profilePicPath = "";
   String userName = "Bushra";
 
@@ -29,16 +26,14 @@ class _ProfilePageState extends State<ProfilePage> {
     _getUserData();
   }
 
-  // Fetch user data from Firestore
+  // Fetch user data for the current session user.
   void _getUserData() async {
-    user = _auth.currentUser; // Fetch the current logged-in user
-    if (user != null) {
-      // Using the user's UID to fetch the profile data from Firestore
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(user!.uid).get();
-      if (userDoc.exists) {
+    userId = SessionService.currentUserId;
+    if (userId != null && userId!.isNotEmpty) {
+      final userDoc = await MongoUserService.instance.getUserById(userId!);
+      if (userDoc != null) {
         setState(() {
-          userName = userDoc['full_name']; // Set username from Firestore data
+          userName = (userDoc['full_name'] ?? 'User').toString();
         });
       }
     } else {
@@ -50,7 +45,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Pick and preview profile picture locally (no Firebase storage)
+  // Pick and preview profile picture locally.
   Future<void> _updateProfilePicture() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -86,7 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Sign out the user
   void _signOut() async {
-    await _auth.signOut();
+    SessionService.clear();
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => LoginPage()),
@@ -123,11 +118,14 @@ class _ProfilePageState extends State<ProfilePage> {
               // Buttons
               _buildProfileButton("Edit Personal Details", Icons.edit, () {
                 // Navigating to EditProfile page when the button is pressed
+                if (userId == null || userId!.isEmpty) {
+                  return;
+                }
                 Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          EditProfile(userId: user!.uid), // Pass userId
+                          EditProfile(userId: userId!), // Pass userId
                     ));
               }),
               _buildProfileButton("Terms and Policy", Icons.description, () {

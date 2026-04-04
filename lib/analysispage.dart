@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pie_chart/pie_chart.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/session_service.dart';
 
 class AnalysisPage extends StatelessWidget {
   final Map<String, dynamic> productData;
@@ -16,13 +16,12 @@ class AnalysisPage extends StatelessWidget {
   });
 
   Future<Map<String, dynamic>> _fetchUserData() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      return userDoc.data() as Map<String, dynamic>;
+    final userId = SessionService.currentUserId;
+    if (userId != null && userId.isNotEmpty) {
+      final userDoc = await MongoUserService.instance.getUserById(userId);
+      if (userDoc != null) {
+        return userDoc;
+      }
     }
     return {};
   }

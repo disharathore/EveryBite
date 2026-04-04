@@ -1,9 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:everybite/homepage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:everybite/services/mongo_user_service.dart';
 
 class EditProfile extends StatefulWidget {
   final String userId;
@@ -15,8 +14,6 @@ class EditProfile extends StatefulWidget {
 
 class _EditProfileState extends State<EditProfile> {
   final _formKey = GlobalKey<FormState>();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -39,10 +36,8 @@ class _EditProfileState extends State<EditProfile> {
 
   Future<void> _loadUserData() async {
     try {
-      DocumentSnapshot userDoc =
-          await _firestore.collection('users').doc(widget.userId).get();
-      if (userDoc.exists) {
-        var userData = userDoc.data() as Map<String, dynamic>;
+      final userData = await MongoUserService.instance.getUserById(widget.userId);
+      if (userData != null) {
         _nameController.text = userData['full_name'] ?? '';
         _emailController.text = userData['email'] ?? '';
         _selectedGender = userData['gender'];
@@ -70,7 +65,7 @@ class _EditProfileState extends State<EditProfile> {
       // Simulate a brief wait to keep the loader visible for a short time
       Future.delayed(const Duration(milliseconds: 300), () async {
         try {
-          await _firestore.collection('users').doc(widget.userId).update({
+          await MongoUserService.instance.updateUser(widget.userId, {
             'full_name': _nameController.text.trim(),
             'gender': _selectedGender,
             'age': _ageController.text.trim(),

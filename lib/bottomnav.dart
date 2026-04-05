@@ -21,17 +21,9 @@ class CustomBottomNavBar extends StatelessWidget {
           icon: Icon(Icons.home),
           label: 'Home',
         ),
-        // BottomNavigationBarItem(
-        //   icon: SizedBox(
-        //     height: 20,
-        //     // Adjust the size of the image
-        //     child: Image.asset('assets/image/samwich.png'),
-        //   ),
-        //   label: '', // No label for the image
-        // ),
          BottomNavigationBarItem(
-          icon: Icon(Icons.fastfood), // Icon for food
-          label: 'Scan', // You can change the label to anything suitable
+          icon: Icon(Icons.qr_code_scanner),
+          label: 'Scan',
         ),
         const BottomNavigationBarItem(
           icon: Icon(Icons.person),

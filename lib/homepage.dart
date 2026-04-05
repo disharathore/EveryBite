@@ -2,14 +2,14 @@ import 'package:everybite/bottomnav.dart';
 import 'package:everybite/analysispage1.dart';
 import 'package:everybite/chatscreen.dart';
 import 'package:flutter/material.dart';
-import 'package:barcode_scan2/barcode_scan2.dart' as barcodescan;
-import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:everybite/analysispage.dart';
 import 'package:everybite/profilepage.dart';
 import 'package:everybite/loginpage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:everybite/services/mongo_user_service.dart';
 import 'package:everybite/services/session_service.dart';
@@ -106,10 +106,13 @@ class _HomepageState extends State<Homepage> {
         _isLoading = true;
       });
 
-      final textRecognizer = GoogleMlKit.vision.textRecognizer();
+      final textRecognizer = TextRecognizer(
+        script: TextRecognitionScript.latin,
+      );
       final inputImage = InputImage.fromFilePath(pickedFile.path);
       final RecognizedText recognizedText =
           await textRecognizer.processImage(inputImage);
+      await textRecognizer.close();
 
       String ingredientsText = recognizedText.text;
 
@@ -189,9 +192,19 @@ while generating the reposnse dont print the user details specifically in the be
 
   Future<void> scanBarcode() async {
     try {
-      var result = await barcodescan.BarcodeScanner.scan();
+      final result = await Navigator.push<String?>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const SimpleBarcodeScannerPage(),
+        ),
+      );
+
+      if (!mounted || result == null || result == '-1' || result.isEmpty) {
+        return;
+      }
+
       setState(() {
-        scannedBarcode = result.rawContent;
+        scannedBarcode = result;
       });
 
       if (scannedBarcode.isNotEmpty) {
@@ -337,178 +350,164 @@ Please use markdown to format the response.
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[200],
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Container(
-                height: MediaQuery.of(context).size.height / 2,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.lightGreen[200],
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      spreadRadius: 4,
-                      blurRadius: 10,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    const Positioned(
-                      top: 80,
-                      left: 20,
-                      child: SizedBox(
-                        width: 200,
-                        child: Text(
-                          "Unlock the power of nutrition with just a scan. Discover the real value of every product, right at your fingertips!",
-                          textAlign: TextAlign.left,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.black87,
-                          ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                    decoration: BoxDecoration(
+                      color: Colors.lightGreen[200],
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(30),
+                        bottomRight: Radius.circular(30),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          spreadRadius: 4,
+                          blurRadius: 10,
+                          offset: const Offset(0, 10),
                         ),
-                      ),
+                      ],
                     ),
-                    Positioned(
-                      bottom: -60,
-                      right: 50,
-                      child: Image.asset(
-                        'assets/image/wrap.png',
-                        height: 500,
-                        width: 105,
-                      ),
-                    ),
-                    Positioned(
-                      top: 350,
-                      left: 20,
-                      child: ElevatedButton.icon(
-                        onPressed: scanBarcode,
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text("Scan Now"),
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.green,
-                          backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 45, vertical: 10),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(40),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Image.asset(
-                        'assets/image/corn.png',
-                        width: 150,
-                        height: 150,
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: Column(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              "Scan, Discover, Nourish!",
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Color.fromARGB(221, 70, 3, 112),
+                            const Expanded(
+                              child: Text(
+                                "Unlock the power of nutrition with just a scan. Discover the real value of every product, right at your fingertips!",
+                                textAlign: TextAlign.left,
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 30),
-                            const Text(
-                              "Get your NutriScore by scanning the Ingredients now!",
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width:
-                                  250, // Adjust the width of the button as needed
-                              child: ElevatedButton.icon(
-                                onPressed: scanIngredients,
-                                icon: SizedBox(
-                                  width:
-                                      30, // Adjust the width of the icon if needed
-                                  child: Icon(
-                                    Icons.qr_code_scanner,
-                                    color: Color.fromARGB(255, 151, 86, 1),
-                                    size: 24, // Adjust the size of the icon
-                                  ),
-                                ),
-                                label: const Text(
-                                  "Scan Ingredients",
-                                  style: TextStyle(fontSize: 15),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  foregroundColor:
-                                      const Color.fromARGB(255, 151, 86, 1),
-                                  backgroundColor:
-                                      const Color.fromARGB(255, 255, 224, 195),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 20, vertical: 10),
-                                ),
-                              ),
+                            const SizedBox(width: 16),
+                            Image.asset(
+                              'assets/image/wrap.png',
+                              height: 105,
+                              width: 105,
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_isLoading)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 20),
-                  Text(
-                    'Generating your personalized response...',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: scanBarcode,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text("Scan Barcode"),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/image/corn.png',
+                          width: 150,
+                          height: 150,
+                        ),
+                        const SizedBox(height: 22),
+                        const Text(
+                          "Scan, Discover, Nourish!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                            color: Color.fromARGB(221, 70, 3, 112),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          "Get your NutriScore by scanning the ingredients now!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: scanIngredients,
+                            icon: const Icon(
+                              Icons.document_scanner,
+                              color: Color.fromARGB(255, 151, 86, 1),
+                              size: 24,
+                            ),
+                            label: const Text(
+                              "Scan Ingredients",
+                              style: TextStyle(fontSize: 15),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              foregroundColor:
+                                  const Color.fromARGB(255, 151, 86, 1),
+                              backgroundColor:
+                                  const Color.fromARGB(255, 255, 224, 195),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20, vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-        ],
+            if (_isLoading)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 20),
+                    Text(
+                      'Generating your personalized response...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
       bottomNavigationBar: CustomBottomNavBar(
         currentIndex: 0, // Set index as needed
-        navigateToHomePage:
-            () {}, // Modify as per your existing navigation logic
+        navigateToHomePage: () {}, // Already on home
         navigateToProfilePage: () => navigateToProfilePage(context),
-        navigateToScanPage: () => navigateToChatScreen(context),
+        navigateToScanPage: () => scanIngredients(),
       ),
     );
   }

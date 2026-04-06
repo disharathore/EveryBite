@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:everybite/services/mongo_user_service.dart';
+import 'package:everybite/services/scan_history_service.dart';
 import 'package:everybite/services/session_service.dart';
 import 'package:everybite/widgets/product_not_found_dialog.dart';
 import 'package:everybite/comparepage.dart';
@@ -30,6 +31,28 @@ class _HomepageState extends State<Homepage> {
   String scannedBarcode = "";
   bool _isLoading = false;
   Map<String, dynamic>? userData;
+
+  int foodScanned = 0;
+  int healthyFoodCount = 0;
+  int typeStats = 0;
+
+  Future<void> _loadStats() async {
+    final history = await ScanHistoryService.instance.getHistory();
+    final healthyScans = history.where((entry) {
+      final score = (entry['nutri_score'] ?? '').toString().toUpperCase();
+      return score == 'A' || score == 'B';
+    }).length;
+    final typeCount = history
+        .map((entry) => (entry['source'] ?? 'unknown').toString())
+        .toSet()
+        .length;
+
+    setState(() {
+      foodScanned = history.length;
+      healthyFoodCount = healthyScans;
+      typeStats = typeCount;
+    });
+  }
 
   Future<String> _generateGroqResponse(String prompt) async {
     final apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
@@ -74,6 +97,7 @@ class _HomepageState extends State<Homepage> {
   void initState() {
     super.initState();
     _fetchUserData();
+    _loadStats();
   }
 
   Future<void> _fetchUserData() async {
@@ -429,6 +453,64 @@ Please use markdown to format the response.
     );
   }
 
+  Widget _buildStatCard({
+    required IconData icon,
+    required String value,
+    required String label,
+    required Color color,
+    required Color backgroundColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.18),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[900],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[700],
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -442,53 +524,170 @@ Please use markdown to format the response.
                   // ── Green header card ──
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     decoration: BoxDecoration(
-                      color: Colors.lightGreen[300],
+                      color: Colors.green.shade200,
                       borderRadius: const BorderRadius.only(
                         bottomLeft: Radius.circular(32),
                         bottomRight: Radius.circular(32),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.12),
+                          color: Colors.black.withOpacity(0.14),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                "Scan smarter, eat healthier.",
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Hi, ${userData?['full_name'] ?? 'there'}",
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    "Track your scans, compare products, and stay on top of healthy choices.",
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black87,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: 10),
-                              Text(
-                                "Use the scanner to understand ingredients, compare products, and chat for quick help.",
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.black87,
-                                  height: 1.5,
-                                ),
+                            ),
+                            Image.asset(
+                              'assets/image/wrap.png',
+                              height: 96,
+                              width: 96,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 16,
+                                offset: const Offset(0, 10),
                               ),
-                              SizedBox(height: 20),
                             ],
                           ),
-                        ),
-                        Image.asset(
-                          'assets/image/wrap.png',
-                          height: 90,
-                          width: 90,
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Nutrition summary',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        const Text(
+                                          'Daily overview from your scanned items',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.all(10),
+                                    child: const Icon(
+                                      Icons.insights,
+                                      color: Colors.green,
+                                      size: 26,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final itemWidth = constraints.maxWidth >= 760
+                                      ? (constraints.maxWidth - 24) / 3
+                                      : double.infinity;
+                                  return Wrap(
+                                    spacing: 12,
+                                    runSpacing: 12,
+                                    children: [
+                                      SizedBox(
+                                        width: itemWidth,
+                                        child: _buildStatCard(
+                                          icon: Icons.local_fire_department,
+                                          value: '$healthyFoodCount',
+                                          label: 'Healthy foods',
+                                          color: Colors.teal,
+                                          backgroundColor: Colors.teal.shade50,
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: itemWidth,
+                                        child: _buildStatCard(
+                                          icon: Icons.food_bank,
+                                          value: '$foodScanned',
+                                          label: 'Food scanned',
+                                          color: Colors.green.shade700,
+                                          backgroundColor: Colors.green.shade50,
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: itemWidth,
+                                        child: _buildStatCard(
+                                          icon: Icons.bar_chart,
+                                          value: '$typeStats',
+                                          label: 'Scan types',
+                                          color: Colors.amber.shade700,
+                                          backgroundColor: Colors.amber.shade50,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -499,6 +698,7 @@ Please use markdown to format the response.
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const SizedBox(height: 20),
                         Image.asset(
                           'assets/image/corn.png',
                           width: 150,

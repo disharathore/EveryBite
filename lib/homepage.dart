@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:everybite/bottomnav.dart';
 import 'package:everybite/analysispage1.dart';
 import 'package:everybite/chatscreen.dart';
@@ -13,7 +14,6 @@ import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:everybite/services/mongo_user_service.dart';
 import 'package:everybite/services/session_service.dart';
-import 'package:everybite/widgets/daily_summary_widget.dart';
 import 'package:everybite/widgets/product_not_found_dialog.dart';
 import 'package:everybite/comparepage.dart';
 import 'package:everybite/historypage.dart';
@@ -30,8 +30,6 @@ class _HomepageState extends State<Homepage> {
   String scannedBarcode = "";
   bool _isLoading = false;
   Map<String, dynamic>? userData;
-  final GlobalKey<DailySummaryWidgetState> _dashboardKey =
-      GlobalKey<DailySummaryWidgetState>();
 
   Future<String> _generateGroqResponse(String prompt) async {
     final apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
@@ -53,7 +51,7 @@ class _HomepageState extends State<Homepage> {
           {'role': 'user', 'content': prompt}
         ],
       }),
-    );
+    ).timeout(const Duration(seconds: 30));
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Groq API request failed: ${response.statusCode}');
@@ -183,10 +181,18 @@ while generating the reposnse dont print the user details specifically in the be
               analysisResult: responseText,
             ),
           ),
-        ).then((_) => _dashboardKey.currentState?.refresh());
+        );
       }
     } catch (e) {
       print("Error generating AI analysis: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to generate analysis. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
 
     setState(() {
@@ -340,10 +346,18 @@ Please use markdown to format the response.
               analysisResult: responseText,
             ),
           ),
-        ).then((_) => _dashboardKey.currentState?.refresh());
+        );
       }
     } catch (e) {
       print("Error generating AI analysis: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to generate analysis. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
 
     setState(() {
@@ -365,6 +379,56 @@ Please use markdown to format the response.
     );
   }
 
+  Widget _buildSectionCard({
+    required String title,
+    required String subtitle,
+    required List<Widget> actionButtons,
+    Color backgroundColor = Colors.white,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            children: actionButtons,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -375,77 +439,65 @@ Please use markdown to format the response.
             SingleChildScrollView(
               child: Column(
                 children: [
-                  // ── Dashboard (only once, at the top) ──
-                  DailySummaryWidget(key: _dashboardKey),
-
                   // ── Green header card ──
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                    padding: const EdgeInsets.fromLTRB(24, 26, 24, 24),
                     decoration: BoxDecoration(
-                      color: Colors.lightGreen[200],
+                      color: Colors.lightGreen[300],
                       borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(30),
-                        bottomRight: Radius.circular(30),
+                        bottomLeft: Radius.circular(32),
+                        bottomRight: Radius.circular(32),
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          spreadRadius: 4,
-                          blurRadius: 10,
+                          color: Colors.black.withOpacity(0.12),
+                          blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                "Unlock the power of nutrition with just a scan. Discover the real value of every product, right at your fingertips!",
-                                textAlign: TextAlign.left,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                "Scan smarter, eat healthier.",
                                 style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w500,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
                                   color: Colors.black87,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Image.asset(
-                              'assets/image/wrap.png',
-                              height: 105,
-                              width: 105,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: scanBarcode,
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text("Scan Barcode"),
-                          style: ElevatedButton.styleFrom(
-                            foregroundColor: Colors.green,
-                            backgroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 32, vertical: 12),
+                              SizedBox(height: 10),
+                              Text(
+                                "Use the scanner to understand ingredients, compare products, and chat for quick help.",
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                  height: 1.5,
+                                ),
+                              ),
+                              SizedBox(height: 20),
+                            ],
                           ),
+                        ),
+                        Image.asset(
+                          'assets/image/wrap.png',
+                          height: 90,
+                          width: 90,
                         ),
                       ],
                     ),
                   ),
 
-                  // ── Middle section ──
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Image.asset(
                           'assets/image/corn.png',
@@ -462,98 +514,193 @@ Please use markdown to format the response.
                             color: Color.fromARGB(221, 70, 3, 112),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         const Text(
-                          "Get your NutriScore by scanning the ingredients now!",
+                          "Pick a tool below to start scanning, review history, compare products, or chat for support.",
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.bold,
                             color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 28),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isWide = constraints.maxWidth >= 760;
+                            final itemWidth = isWide
+                                ? (constraints.maxWidth - 24) / 2
+                                : double.infinity;
 
-                        // Scan Ingredients button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: scanIngredients,
-                            icon: const Icon(
-                              Icons.document_scanner,
-                              color: Color.fromARGB(255, 151, 86, 1),
-                              size: 24,
-                            ),
-                            label: const Text(
-                              "Scan Ingredients",
-                              style: TextStyle(fontSize: 15),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              foregroundColor:
-                                  const Color.fromARGB(255, 151, 86, 1),
-                              backgroundColor:
-                                  const Color.fromARGB(255, 255, 224, 195),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 20, vertical: 14),
-                            ),
-                          ),
+                            return Wrap(
+                              spacing: 16,
+                              runSpacing: 16,
+                              children: [
+                                SizedBox(
+                                  width: itemWidth,
+                                  child: _buildSectionCard(
+                                    title: 'Scanner',
+                                    subtitle:
+                                        'Scan barcodes or ingredients to get instant food insights.',
+                                    backgroundColor: const Color(0xFFEAF5FF),
+                                    actionButtons: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: scanBarcode,
+                                          icon: const Icon(
+                                            Icons.qr_code_scanner,
+                                            size: 24,
+                                          ),
+                                          label: const Text('Scan Barcode'),
+                                          style: ElevatedButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            backgroundColor:
+                                                Colors.blue.shade700,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: scanIngredients,
+                                          icon: const Icon(
+                                            Icons.document_scanner,
+                                            size: 24,
+                                          ),
+                                          label: const Text('Scan Ingredients'),
+                                          style: ElevatedButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            backgroundColor:
+                                                Colors.purple.shade400,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: itemWidth,
+                                  child: _buildSectionCard(
+                                    title: 'Scan History',
+                                    subtitle:
+                                        'See your past scans and use them to make smarter choices.',
+                                    backgroundColor: const Color(0xFFF2F9EA),
+                                    actionButtons: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const HistoryPage(),
+                                            ),
+                                          ),
+                                          icon: const Icon(Icons.history,
+                                              size: 24),
+                                          label: const Text('History'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.green.shade700,
+                                            side: BorderSide(
+                                                color: Colors.green.shade700),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: itemWidth,
+                                  child: _buildSectionCard(
+                                    title: 'Compare',
+                                    subtitle:
+                                        'Compare products side-by-side to choose the healthiest option.',
+                                    backgroundColor: const Color(0xFFFFF7E5),
+                                    actionButtons: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const ComparePage(),
+                                            ),
+                                          ),
+                                          icon: const Icon(
+                                              Icons.compare_arrows,
+                                              size: 24),
+                                          label: const Text('Compare'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: Colors.orange.shade700,
+                                            side: BorderSide(
+                                                color: Colors.orange.shade700),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: itemWidth,
+                                  child: _buildSectionCard(
+                                    title: 'Chat',
+                                    subtitle:
+                                        'Get instant guidance and help through chat support.',
+                                    backgroundColor: const Color(0xFFF5E9FF),
+                                    actionButtons: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: OutlinedButton.icon(
+                                          onPressed: () =>
+                                              navigateToChatScreen(context),
+                                          icon: const Icon(Icons.chat,
+                                              size: 24),
+                                          label: const Text('Chat'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor:
+                                                Colors.deepPurple.shade700,
+                                            side: BorderSide(
+                                                color:
+                                                    Colors.deepPurple.shade700),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
-
-                        const SizedBox(height: 12),
-
-                        // History + Compare buttons
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => const HistoryPage()),
-                                ).then(
-                                    (_) => _dashboardKey.currentState?.refresh()),
-                                icon: const Icon(Icons.history, size: 18),
-                                label: const Text('History'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.deepPurple,
-                                  side: const BorderSide(
-                                      color: Colors.deepPurple),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => const ComparePage()),
-                                ),
-                                icon: const Icon(Icons.compare_arrows,
-                                    size: 18),
-                                label: const Text('Compare'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: Colors.teal,
-                                  side:
-                                      const BorderSide(color: Colors.teal),
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(30)),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 24),
                       ],
                     ),
                   ),

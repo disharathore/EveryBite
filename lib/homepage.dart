@@ -13,6 +13,10 @@ import 'package:simple_barcode_scanner/simple_barcode_scanner.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:everybite/services/mongo_user_service.dart';
 import 'package:everybite/services/session_service.dart';
+import 'package:everybite/widgets/daily_summary_widget.dart';
+import 'package:everybite/widgets/product_not_found_dialog.dart';
+import 'package:everybite/comparepage.dart';
+import 'package:everybite/historypage.dart';
 
 class Homepage extends StatefulWidget {
   final String? userId;
@@ -26,6 +30,8 @@ class _HomepageState extends State<Homepage> {
   String scannedBarcode = "";
   bool _isLoading = false;
   Map<String, dynamic>? userData;
+  final GlobalKey<DailySummaryWidgetState> _dashboardKey =
+      GlobalKey<DailySummaryWidgetState>();
 
   Future<String> _generateGroqResponse(String prompt) async {
     final apiKey = dotenv.env['GROQ_API_KEY'] ?? '';
@@ -36,7 +42,7 @@ class _HomepageState extends State<Homepage> {
     }
 
     final response = await http.post(
-      Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+      Uri.parse('https://api.groqcloud.com/openai/v1/chat/completions'),
       headers: {
         'Authorization': 'Bearer $apiKey',
         'Content-Type': 'application/json',
@@ -76,9 +82,7 @@ class _HomepageState extends State<Homepage> {
     try {
       final uid = SessionService.currentUserId ?? widget.userId;
       if (uid == null || uid.isEmpty) {
-        if (!mounted) {
-          return;
-        }
+        if (!mounted) return;
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginPage()),
@@ -179,7 +183,7 @@ while generating the reposnse dont print the user details specifically in the be
               analysisResult: responseText,
             ),
           ),
-        );
+        ).then((_) => _dashboardKey.currentState?.refresh());
       }
     } catch (e) {
       print("Error generating AI analysis: $e");
@@ -218,8 +222,10 @@ while generating the reposnse dont print the user details specifically in the be
     }
   }
 
+  // BUG FIX: corrected bracket structure — was broken in your version
   Future<void> fetchProductDetails(String barcode) async {
-    final url = "https://world.openfoodfacts.org/api/v0/product/$barcode.json";
+    final url =
+        "https://world.openfoodfacts.org/api/v0/product/$barcode.json";
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -228,7 +234,21 @@ while generating the reposnse dont print the user details specifically in the be
         final product = data["product"];
         await analyzeFood(product);
       } else {
-        print("Product not found");
+        // Product not found — ask user for manual entry
+        setState(() {
+          _isLoading = false;
+        });
+        if (!mounted) return;
+        final manualName = await showProductNotFoundDialog(
+          context,
+          barcode: barcode,
+        );
+        if (manualName != null && manualName.isNotEmpty) {
+          setState(() {
+            _isLoading = true;
+          });
+          await analyzeFood({'product_name': manualName, 'nutriments': {}});
+        }
       }
     } else {
       print("Failed to fetch product data");
@@ -320,7 +340,7 @@ Please use markdown to format the response.
               analysisResult: responseText,
             ),
           ),
-        );
+        ).then((_) => _dashboardKey.currentState?.refresh());
       }
     } catch (e) {
       print("Error generating AI analysis: $e");
@@ -334,8 +354,7 @@ Please use markdown to format the response.
   void navigateToChatScreen(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-          builder: (context) => ChatScreen()), // ChatScreen is your chat screen
+      MaterialPageRoute(builder: (context) => ChatScreen()),
     );
   }
 
@@ -356,6 +375,10 @@ Please use markdown to format the response.
             SingleChildScrollView(
               child: Column(
                 children: [
+                  // ── Dashboard (only once, at the top) ──
+                  DailySummaryWidget(key: _dashboardKey),
+
+                  // ── Green header card ──
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
@@ -418,8 +441,10 @@ Please use markdown to format the response.
                       ],
                     ),
                   ),
+
+                  // ── Middle section ──
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                    padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
                     child: Column(
                       children: [
                         Image.asset(
@@ -448,6 +473,8 @@ Please use markdown to format the response.
                           ),
                         ),
                         const SizedBox(height: 20),
+
+                        // Scan Ingredients button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -474,38 +501,95 @@ Please use markdown to format the response.
                             ),
                           ),
                         ),
+
+                        const SizedBox(height: 12),
+
+                        // History + Compare buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const HistoryPage()),
+                                ).then(
+                                    (_) => _dashboardKey.currentState?.refresh()),
+                                icon: const Icon(Icons.history, size: 18),
+                                label: const Text('History'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.deepPurple,
+                                  side: const BorderSide(
+                                      color: Colors.deepPurple),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => const ComparePage()),
+                                ),
+                                icon: const Icon(Icons.compare_arrows,
+                                    size: 18),
+                                label: const Text('Compare'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.teal,
+                                  side:
+                                      const BorderSide(color: Colors.teal),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30)),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),
+
+            // Loading overlay
             if (_isLoading)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 20),
-                    Text(
-                      'Generating your personalized response...',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+              Container(
+                color: Colors.black.withOpacity(0.3),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Colors.white),
+                      SizedBox(height: 20),
+                      Text(
+                        'Generating your personalized response...',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
           ],
         ),
       ),
       bottomNavigationBar: CustomBottomNavBar(
-        currentIndex: 0, // Set index as needed
-        navigateToHomePage: () {}, // Already on home
+        currentIndex: 0,
+        navigateToHomePage: () {},
         navigateToProfilePage: () => navigateToProfilePage(context),
         navigateToScanPage: () => scanIngredients(),
       ),

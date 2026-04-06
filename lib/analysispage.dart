@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pie_chart/pie_chart.dart';
 import 'package:everybite/services/mongo_user_service.dart';
 import 'package:everybite/services/session_service.dart';
+import 'package:everybite/services/scan_history_service.dart';
+import 'package:everybite/widgets/alternative_card.dart';
 
 class AnalysisPage extends StatelessWidget {
   final Map<String, dynamic> productData;
@@ -135,7 +137,9 @@ class AnalysisPage extends StatelessWidget {
             Colors.blue,
           ];
 
-          return Scaffold(
+          // Save to history (fire and forget)
+_saveToHistory(userData, sugar, proteins, fats, sodium, nutriScore, ecoScore);
+return Scaffold(
             appBar: AppBar(
               title: Text(
                 "Product Analysis",
@@ -302,6 +306,14 @@ class AnalysisPage extends StatelessWidget {
 
                     // Environmental Impact Section
                     _buildEnvironmentalImpact(),
+                    // Healthier Alternative
+                    AlternativeCard(
+                      productName: productData['product_name'] ?? 'this product',
+                      nutriScore: _generateNutriScore(sugar, fats, proteins, pregnancyStatus),
+                      userAllergies: [(userData['allergies'] ?? '').toString()],
+                      dietaryPreference: (userData['dietary_preference'] ?? '').toString(),
+                    ),
+                    const SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -313,7 +325,22 @@ class AnalysisPage extends StatelessWidget {
   }
 
   // Helper method to scale the values to a scale of 10
-  double _scaleToTen(double value, double maxValue) {
+  Future<void> _saveToHistory(Map<String, dynamic> userData, double sugar,
+    double proteins, double fats, double sodium, String nutriScore, String ecoScore) async {
+  final productName = productData['product_name'] ?? 'Unknown Product';
+  await ScanHistoryService.instance.addScan(
+    productName: productName,
+    nutriScore: nutriScore,
+    ecoScore: ecoScore,
+    sugar: sugar,
+    proteins: proteins,
+    fats: fats,
+    sodium: sodium,
+    analysisResult: analysisResult,
+    source: 'barcode',
+  );
+}
+double _scaleToTen(double value, double maxValue) {
     return (value / maxValue) * 10;
   }
 

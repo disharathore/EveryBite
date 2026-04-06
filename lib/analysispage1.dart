@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:pie_chart/pie_chart.dart';
 import 'package:everybite/services/mongo_user_service.dart';
 import 'package:everybite/services/session_service.dart';
+import 'package:everybite/services/scan_history_service.dart';
+import 'package:everybite/widgets/alternative_card.dart';
 
 class AnalysisPage1 extends StatelessWidget {
   final Map<String, dynamic> productData;
@@ -152,6 +154,18 @@ class AnalysisPage1 extends StatelessWidget {
           var nutriScore = productData["nutri_score"] ??
               _generateNutriScore(sugar, fats, proteins, pregnancyStatus);
           var ecoScore = productData["eco_score"] ?? _generateEcoScore();
+          // Save OCR scan to history
+          ScanHistoryService.instance.addScan(
+            productName: productData['product_name'] ?? 'Scanned Ingredients',
+            nutriScore: _generateNutriScore(sugar, fats, proteins, pregnancyStatus),
+            ecoScore: _generateEcoScore(),
+            sugar: sugar,
+            proteins: proteins,
+            fats: fats,
+            sodium: 0,
+            analysisResult: analysisResult,
+            source: 'ocr',
+          );
 
           return Scaffold(
             appBar: AppBar(
@@ -249,6 +263,11 @@ class AnalysisPage1 extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                   _buildEnvironmentalImpact(),
+                  AlternativeCard(
+                    productName: productData['product_name'] ?? productData['ingredients_text']?.toString().substring(0, 30) ?? 'scanned product',
+                    nutriScore: _generateNutriScore(sugar, fats, proteins, pregnancyStatus),
+                  ),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
